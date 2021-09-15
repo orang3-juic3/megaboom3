@@ -20,6 +20,7 @@ class AudioGuild(manager: AudioPlayerManager, guild: Guild) : AudioEventAdapter(
     val id: String = guild.id
     var looping = false
     private var current: AudioTrack? = null
+    var expiry: Long = -1
 
 
     override fun onTrackEnd(player: AudioPlayer, track: AudioTrack, endReason: AudioTrackEndReason) {
@@ -41,6 +42,11 @@ class AudioGuild(manager: AudioPlayerManager, guild: Guild) : AudioEventAdapter(
     fun clearQueue() {
         queue.clear()
         current = null
+    }
+
+    fun pop() : AudioTrack? {
+        if (queue.isEmpty()) return null
+        return queue.last().apply { queue.remove(this) }
     }
 
     //true if successful

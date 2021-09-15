@@ -9,18 +9,19 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack
 import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.Permission
-import net.dv8tion.jda.api.entities.Member
-import net.dv8tion.jda.api.entities.MessageEmbed
-import net.dv8tion.jda.api.entities.VoiceChannel
+import net.dv8tion.jda.api.entities.*
+import net.dv8tion.jda.api.events.guild.GenericGuildEvent
 import net.dv8tion.jda.api.events.guild.GuildLeaveEvent
 import net.dv8tion.jda.api.events.guild.UnavailableGuildLeaveEvent
-import net.dv8tion.jda.api.events.guild.voice.GuildVoiceLeaveEvent
+import net.dv8tion.jda.api.events.guild.voice.*
 import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.SubscribeEvent
 import net.dv8tion.jda.api.managers.AudioManager
 import net.dv8tion.jda.api.utils.MarkdownSanitizer
 import java.awt.Color
 import java.time.Instant
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 class CommandListener {
@@ -66,7 +67,7 @@ class CommandListener {
                 playerManager.loadItemOrdered(audioGuild, identifier, object : AudioLoadResultHandler {
                     override fun trackLoaded(track: AudioTrack) {
                         e.channel
-                            .sendMessageEmbeds(builder.addField("Success!", "Adding ${track.info.title} to q!", false).build())
+                            .sendMessageEmbeds(builder.addField("Success!", "Adding `${track.info.title.esc()}` to q!", false).build())
                             .queue()
                         track.play(audioGuild, chn,e.guild.audioManager)
                     }
@@ -75,7 +76,7 @@ class CommandListener {
                         if (res.name == CommandName.PLAY_YT_S || res.name == CommandName.PLAY_SC_S) {
                             val track = playlist.tracks[0]
                             e.channel
-                                .sendMessageEmbeds(builder.addField("Success!", "Adding ${track.info.title} to q!", false).build())
+                                .sendMessageEmbeds(builder.addField("Success!", "Adding `${track.info.title.esc()}` to q!", false).build())
                                 .queue()
                             track.play(audioGuild, chn,e.guild.audioManager)
                         } else {
@@ -149,6 +150,29 @@ class CommandListener {
                     e.channel.sendMessageEmbeds(builder.addField("Success", "Now at ${ms.fmtMs()}!", false).build()).queue()
                 }
             }
+            CommandName.POP -> {
+                val pop =audioGuild.pop()
+                if (pop == null) {
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Failure", "Queue is empty!", false).build()).queue()
+                } else {
+                    e.channel.sendMessageEmbeds(builder.addField("Success!", "Removed `${pop.info.title.esc()}` from q!", false).build()).queue()
+                }
+            }
+            CommandName.HELP -> {
+                e.channel.sendMessageEmbeds(builder
+                    .addField("Available commands:", "!help- Lists available commands\n" +
+                            "!p, !play (yt search term/url)- Attempts to play audio\n" +
+                            "!psc, !playsc (sc search term/url)- Attempts to play from soundcloud (EXPERIMENTAL)\n" +
+                            "!skip, !fs- Skips the current track.\n" +
+                            "!pause- Toggles pause on the player.\n" +
+                            "!loop- Toggles loop on the player.\n" +
+                            "!queue- Displays all queued songs.\n" +
+                            "!clear- Clears the queue.\n" +
+                            "!pop- Removes the last added element to the queue.\n" +
+                            "!seek (HH:MM:SS)- Seeks to the given timestamp.\n" +
+                            "!dc- Disconnects the bot, this happens automatically if the bot is alone in " +
+                            "vc for 2 minutes. When the bot disconnects, all pause and loop options are reset and the queue is cleared.", false).build()).queue()
+            }
             CommandName.NOT -> return
         }
     }
@@ -168,9 +192,6 @@ class CommandListener {
             }
         }
     }
-    private fun String.esc() : String {
-        return MarkdownSanitizer.escape(this)
-    }
 
     // null result == success
     private fun voiceChnPrecons(chn: VoiceChannel?, self: Member) : MessageEmbed? {
@@ -184,7 +205,6 @@ class CommandListener {
         }
     }
 
-
     private enum class CommandName {
         PLAY,
         PLAY_YT_S,
@@ -196,13 +216,15 @@ class CommandListener {
         LOOP,
         CLEAR,
         SEEK,
+        POP,
+        HELP,
         NOT;
     }
 
     private class CommandResult(val name: CommandName, val args: Array<String>)
 
     private fun parseCommand(string: String) : CommandResult? {
-        if (string[0] != '!') return CommandResult(CommandName.NOT, Array(0) {""})
+        if (string.isEmpty() || string[0] != '!') return CommandResult(CommandName.NOT, Array(0) {""})
         val splits = string.substring(1 until string.length).split(" ")
         when {
             splits[0].equals(ignoreCase = true, other = "play") || splits[0].equals(ignoreCase = true, other = "p")-> {
@@ -251,19 +273,14 @@ class CommandListener {
                 }
                 return CommandResult(CommandName.SEEK, splits.args())
             }
+            splits[0].equals(ignoreCase = true, other = "pop") -> {
+                return CommandResult(CommandName.POP, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "help") -> {
+                return CommandResult(CommandName.HELP, splits.args())
+            }
         }
         return null
-    }
-
-    private fun List<String>.args() : Array<String> {
-        return Array(this.size -1) { this[it + 1] }
-    }
-
-    private fun AudioTrack.play(audioGuild: AudioGuild, chn: VoiceChannel, audioManager: AudioManager) {
-        if (!audioManager.isConnected) {
-            audioManager.openAudioConnection(chn)
-        }
-        audioGuild.queue(this)
     }
 
     private fun seekToMs(string: String) : Long? {
@@ -285,14 +302,6 @@ class CommandListener {
         return sum * 1000
     }
 
-    private fun Long.fmtMs() : String {
-        return String.format("%02d:%02d:%02d", TimeUnit.MILLISECONDS.toHours(this),
-            TimeUnit.MILLISECONDS.toMinutes(this) % TimeUnit.HOURS.toMinutes(1),
-            TimeUnit.MILLISECONDS.toSeconds(this) % TimeUnit.MINUTES.toSeconds(1));
-    }
-
-
-
     @SubscribeEvent
     fun onGuildLeave(e: GuildLeaveEvent) =
         guilds.removeIf {
@@ -305,10 +314,67 @@ class CommandListener {
             it.id == e.guildId
         }
 
+    private val dcScheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+
     @SubscribeEvent
     fun onVcDc(e: GuildVoiceLeaveEvent) {
-        if (e.member.id != jda!!.selfUser.id) return
-        guilds.first { e.guild.id == it.id }.apply { clearQueue(); looping =false; if (isPaused()) togglePause(); nextTrack() }
+        e.audioGuild {
+            vcDc(e.member, it, e.channelLeft, e.guild)
+        }
     }
 
+    private fun vcDc(member: Member, audioGuild: AudioGuild, chn: VoiceChannel, guild: Guild) {
+        val id = jda!!.selfUser.id
+        if (member.id == id) {
+            audioGuild.apply { clearQueue(); looping = false; if (isPaused()) togglePause(); nextTrack() }
+        } else {
+            if (chn.hasSelf()) {
+                if (chn.members.size == 1) {
+                    scheduleDc(audioGuild, guild)
+                }
+            }
+        }
+    }
+
+    @SubscribeEvent
+    fun onVcMove(e: GuildVoiceMoveEvent) {
+        e.audioGuild {
+            if (e.member.id == jda!!.selfUser.id) return
+            if (e.channelJoined.hasSelf()) {
+                it.expiry = -1
+            } else if (e.channelLeft.hasSelf()) {
+                vcDc(e.member,it, e.channelLeft, e.guild)
+            }
+        }
+    }
+
+    @SubscribeEvent
+    fun onVcConnect(e: GuildVoiceJoinEvent) {
+        e.audioGuild {
+            if (e.channelJoined.hasSelf()) {
+                it.expiry = -1
+            }
+        }
+    }
+
+
+    private inline fun GenericGuildEvent.audioGuild(block : (AudioGuild) -> Unit) {
+        val audioGuild = guilds.firstOrNull {this.guild.id == it.id}
+        audioGuild?.let { block.invoke(it) }
+    }
+
+    private fun scheduleDc(audioGuild: AudioGuild, guild: Guild) {
+        val delay: Long = 2000 * 60
+        val exp  = System.currentTimeMillis() + delay
+        audioGuild.expiry = exp
+        dcScheduler.schedule(delay, TimeUnit.MILLISECONDS) {
+            if (audioGuild.expiry == exp) {
+                val manager = guild.audioManager
+                if (manager.isConnected) {
+                    manager.closeAudioConnection()
+                    audioGuild.expiry = -1
+                }
+            }
+        }
+    }
 }

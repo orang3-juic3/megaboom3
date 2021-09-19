@@ -6,8 +6,8 @@ import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason
 import net.dv8tion.jda.api.entities.Guild
-import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
+import java.util.concurrent.LinkedBlockingDeque
 
 class AudioGuild(manager: AudioPlayerManager, guild: Guild) : AudioEventAdapter() {
 
@@ -16,7 +16,7 @@ class AudioGuild(manager: AudioPlayerManager, guild: Guild) : AudioEventAdapter(
         addListener(this@AudioGuild)
         guild.audioManager.sendingHandler = AudioPlayerSendHandler(this)
     }
-    private val queue: BlockingQueue<AudioTrack> = ArrayBlockingQueue(100)
+    private val queue: BlockingQueue<AudioTrack> = LinkedBlockingDeque()
     val id: String = guild.id
     var looping = false
     private var current: AudioTrack? = null

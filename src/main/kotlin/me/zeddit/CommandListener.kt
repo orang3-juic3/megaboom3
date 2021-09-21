@@ -16,15 +16,13 @@ import net.dv8tion.jda.api.events.guild.UnavailableGuildLeaveEvent
 import net.dv8tion.jda.api.events.guild.voice.*
 import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.SubscribeEvent
-import net.dv8tion.jda.api.managers.AudioManager
-import net.dv8tion.jda.api.utils.MarkdownSanitizer
 import java.awt.Color
 import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-class CommandListener(guilds : MutableSet<AudioGuild>) : GenericCommandListener(guilds) {
+class CommandListener : GenericCommandListener(guilds) {
 
     private val playerManager : AudioPlayerManager = DefaultAudioPlayerManager().apply {
         AudioSourceManagers.registerLocalSource(this)

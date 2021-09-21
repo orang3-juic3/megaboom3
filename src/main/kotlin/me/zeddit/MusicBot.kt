@@ -6,11 +6,12 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager
 import java.util.*
+import kotlin.collections.HashSet
 
 var jda : JDA? = null
-val cache : PlaylistCache = PlaylistCache(20)
 val storageHandler = PlaylistStorageHandler()
-
+val cache : PlaylistCache = PlaylistCache(20)
+val guilds: MutableSet<AudioGuild> = HashSet()
 fun main(args: Array<String>) {
     val token = args[0]
     val listener = CommandListener()

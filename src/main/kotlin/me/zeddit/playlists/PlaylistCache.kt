@@ -1,9 +1,10 @@
 package me.zeddit.playlists
 
 import me.zeddit.firstNullable
+import me.zeddit.storageHandler
 
 // A LRU cache for playlists
-class PlaylistCache(private val maxSize : Int, private val storageHandler: PlaylistStorageHandler)  {
+class PlaylistCache(private val maxSize : Int)  {
 
     private val deque = ArrayDeque<Playlist>()
 

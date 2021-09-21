@@ -59,3 +59,8 @@ fun <T> List<Future<T>>.awaitAll(): List<T> {
     }
     return complete // shouldnt block if they are all complete
 }
+
+inline fun <T> Iterable<T>.firstNullable(predicate: (T) -> Boolean) : T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}

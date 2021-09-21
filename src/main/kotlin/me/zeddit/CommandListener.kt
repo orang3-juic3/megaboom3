@@ -24,14 +24,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-class CommandListener {
+class CommandListener(guilds : MutableSet<AudioGuild>) : GenericCommandListener(guilds) {
 
     private val playerManager : AudioPlayerManager = DefaultAudioPlayerManager().apply {
         AudioSourceManagers.registerLocalSource(this)
         AudioSourceManagers.registerRemoteSources(this)
     }
-
-    private val guilds: MutableSet<AudioGuild> = HashSet()
 
     @SubscribeEvent
     fun onGuildMessage(e: GuildMessageReceivedEvent) {

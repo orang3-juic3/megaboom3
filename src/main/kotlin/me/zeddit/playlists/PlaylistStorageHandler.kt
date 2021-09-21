@@ -1,17 +1,23 @@
 package me.zeddit.playlists
 
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager
+import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager
+import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 
 
 // This class will block
-class PlaylistStorageHandler(private val playerManager: AudioPlayerManager) : AutoCloseable {
+class PlaylistStorageHandler : AutoCloseable {
 
     private val file: File = File("playlists.db")
     private val dbPath = "jdbc:sqlite:${file.absolutePath}"
     private lateinit var connection: Connection
+    private val playerManager: AudioPlayerManager = DefaultAudioPlayerManager().apply {
+        AudioSourceManagers.registerLocalSource(this)
+        AudioSourceManagers.registerRemoteSources(this)
+    }
     // this shouldn't be called more than once!
     fun init() {
         var firstTime = false
@@ -60,11 +66,12 @@ class PlaylistStorageHandler(private val playerManager: AudioPlayerManager) : Au
         stmt.setString(5, playlist.info.description)
     }
 
+    @Synchronized
     private fun syncTracks(playlist: Playlist) {
         var stmt = connection.prepareStatement("DELETE FROM PlaylistItems WHERE id = ?;")
         stmt.setString(1, playlist.id)
         stmt.executeUpdate()
-        playlist.audioTracks.map { it.info.uri }.forEachIndexed {i, it->
+        playlist.getTracks().map { it.info.uri }.forEachIndexed {i, it->
             stmt = connection.prepareStatement("INSERT INTO PlaylistItems VALUES (?,?,?);")
             stmt.setString(1, playlist.id)
             stmt.setString(2, it)
@@ -72,6 +79,8 @@ class PlaylistStorageHandler(private val playerManager: AudioPlayerManager) : Au
         }
     }
 
+    //This list could be empty!
+    @Synchronized
     fun retrieveAllPlaylists(uid: String) : List<Playlist> {
         var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE uid = ?;")
         stmt.setString(1, uid)
@@ -80,7 +89,6 @@ class PlaylistStorageHandler(private val playerManager: AudioPlayerManager) : Au
         while (res.next()) {
             val info = Playlist.Info(res.getString(4), res.getString(5))
             val id = res.getString(1)
-            val playlistNo = res.getInt(3)
             stmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")
             stmt.setString(1, id)
             val miniRes = stmt.executeQuery()
@@ -93,13 +101,24 @@ class PlaylistStorageHandler(private val playerManager: AudioPlayerManager) : Au
         return playlists
     }
 
-    fun retrievePlaylist(id: String) : Playlist {
-        var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE id = ?")
+    @Synchronized
+    fun retrievePlaylist(id: String) : Playlist? {
+        var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE id = ?;")
         stmt.setString(1, id)
         val res = stmt.executeQuery()
-        while (res.next()) {
-
+        if (!res.next()) {
+            return null
         }
+        res.first()
+        val info  = Playlist.Info(res.getString(4), res.getString(5))
+        stmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")
+        stmt.setString(1,id)
+        val miniRes = stmt.executeQuery()
+        val tracks : MutableList<String> = ArrayList()
+        while (miniRes.next()) {
+            tracks.add(miniRes.getString(2))
+        }
+        return Playlist(tracks, id, info, playerManager)
     }
 
     override fun close() {

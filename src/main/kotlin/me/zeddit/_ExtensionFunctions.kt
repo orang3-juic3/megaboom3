@@ -2,7 +2,10 @@ package me.zeddit
 
 import com.google.gson.Gson
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack
+import net.dv8tion.jda.api.EmbedBuilder
+import net.dv8tion.jda.api.entities.EmbedType
 import net.dv8tion.jda.api.entities.GuildChannel
+import net.dv8tion.jda.api.entities.MessageEmbed
 import net.dv8tion.jda.api.entities.VoiceChannel
 import net.dv8tion.jda.api.managers.AudioManager
 import net.dv8tion.jda.api.utils.MarkdownSanitizer
@@ -64,3 +67,5 @@ inline fun <T> Iterable<T>.firstNullable(predicate: (T) -> Boolean) : T? {
     for (element in this) if (predicate(element)) return element
     return null
 }
+
+fun String.toResultField(success: Boolean = false) : MessageEmbed.Field = MessageEmbed.Field(if (success) "Success" else "Failure", this, false)

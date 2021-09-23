@@ -25,7 +25,7 @@ class PlaylistStorageHandler : AutoCloseable {
             firstTime = true
             firstTimeSetup()
         }
-        if (!firstTime) {
+        if (firstTime) {
             println("Set up playlists db for the first time!")
         } else {
             connection = DriverManager.getConnection(dbPath)
@@ -38,7 +38,7 @@ class PlaylistStorageHandler : AutoCloseable {
         val stmt = connection.createStatement()
         stmt.executeUpdate("CREATE TABLE PlaylistItems(id varchar(255), url varchar(255), i INT);")
         stmt.executeUpdate("CREATE TABLE PlaylistMeta(id varchar(255), uid varchar(30), pid INT, name varchar(255), description varchar(255));")
-
+        stmt.close()
     }
 
 
@@ -53,6 +53,7 @@ class PlaylistStorageHandler : AutoCloseable {
         stmt.setString(1, playlist.id)
         val res = stmt.executeQuery()
         val isEmpty = res.next()
+        stmt.close()
         if (isEmpty) {
             stmt = connection.prepareStatement("INSERT INTO PlaylistMeta VALUES (?, ?, ?, ?, ?);")
         } else {
@@ -64,19 +65,23 @@ class PlaylistStorageHandler : AutoCloseable {
         stmt.setString(3, playlist.getPlaylistNumber())
         stmt.setString(4, playlist.info.name)
         stmt.setString(5, playlist.info.description)
+        stmt.executeUpdate()
+        stmt.close()
     }
 
-    @Synchronized
     private fun syncTracks(playlist: Playlist) {
         var stmt = connection.prepareStatement("DELETE FROM PlaylistItems WHERE id = ?;")
         stmt.setString(1, playlist.id)
-        stmt.executeUpdate()
+        stmt.execute()
         playlist.getTracks().map { it.info.uri }.forEachIndexed {i, it->
+            stmt.close()
             stmt = connection.prepareStatement("INSERT INTO PlaylistItems VALUES (?,?,?);")
             stmt.setString(1, playlist.id)
             stmt.setString(2, it)
             stmt.setInt(3, i)
+            stmt.executeUpdate()
         }
+        println()
     }
 
     //This list could be empty!
@@ -85,6 +90,7 @@ class PlaylistStorageHandler : AutoCloseable {
         var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE uid = ?;")
         stmt.setString(1, uid)
         val res = stmt.executeQuery()
+        stmt.close()
         val playlists = ArrayList<Playlist>()
         while (res.next()) {
             val info = Playlist.Info(res.getString(4), res.getString(5))
@@ -96,6 +102,7 @@ class PlaylistStorageHandler : AutoCloseable {
             while (miniRes.next()) {
                 tracks.add(miniRes.getString(2))
             }
+            stmt.close()
             playlists.add(Playlist(tracks, id, info, playerManager))
         }
         return playlists
@@ -111,6 +118,7 @@ class PlaylistStorageHandler : AutoCloseable {
         }
         res.first()
         val info  = Playlist.Info(res.getString(4), res.getString(5))
+        stmt.close()
         stmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")
         stmt.setString(1,id)
         val miniRes = stmt.executeQuery()
@@ -118,6 +126,7 @@ class PlaylistStorageHandler : AutoCloseable {
         while (miniRes.next()) {
             tracks.add(miniRes.getString(2))
         }
+        stmt.close()
         return Playlist(tracks, id, info, playerManager)
     }
 

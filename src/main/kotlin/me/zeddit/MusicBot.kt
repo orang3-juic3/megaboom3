@@ -2,11 +2,13 @@ package me.zeddit
 
 import me.zeddit.playlists.PlaylistCache
 import me.zeddit.playlists.PlaylistStorageHandler
+import me.zeddit.playlists.PlaylistsCommandListener
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager
 import java.util.*
 import kotlin.collections.HashSet
+import kotlin.system.exitProcess
 
 var jda : JDA? = null
 val storageHandler = PlaylistStorageHandler()
@@ -15,9 +17,10 @@ val guilds: MutableSet<AudioGuild> = HashSet()
 fun main(args: Array<String>) {
     val token = args[0]
     val listener = CommandListener()
+    storageHandler.init()
     jda = JDABuilder.createDefault(token)
         .setEventManager(AnnotatedEventManager())
-        .addEventListeners(listener)
+        .addEventListeners(listener, PlaylistsCommandListener())
         .build().awaitReady()
     sysInThread.start()
 }
@@ -33,6 +36,7 @@ private val sysInThread = Thread {
                 storageHandler.sync(it)
                 println("Saved cached playlist with id ${it.id}!")
             }
+            exitProcess(0)
         }
     }
 }

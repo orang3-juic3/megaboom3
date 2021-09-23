@@ -22,7 +22,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-class CommandListener : GenericCommandListener(guilds) {
+class CommandListener  {
 
     private val playerManager : AudioPlayerManager = DefaultAudioPlayerManager().apply {
         AudioSourceManagers.registerLocalSource(this)
@@ -40,7 +40,7 @@ class CommandListener : GenericCommandListener(guilds) {
                 EmbedBuilder()
                 .setColor(Color.RED)
                 .setTitle("Error")
-                .addField("Something went wrong!", "Syntax is incorrect!", false)
+                .addField("Something went wrong!", "Unknown command!", false)
                 .setTimestamp(Instant.now()).build()).queue()
             return
         }
@@ -63,7 +63,7 @@ class CommandListener : GenericCommandListener(guilds) {
                 playerManager.loadItemOrdered(audioGuild, identifier, object : AudioLoadResultHandler {
                     override fun trackLoaded(track: AudioTrack) {
                         e.channel
-                            .sendMessageEmbeds(builder.addField("Success!", "Adding `${track.info.title.esc()}` to q!", false).build())
+                            .sendMessageEmbeds(builder.addField("Adding `${track.info.title.esc()}` to q!".toResultField(true)).build())
                             .queue()
                         track.play(audioGuild, chn,e.guild.audioManager)
                     }
@@ -72,12 +72,12 @@ class CommandListener : GenericCommandListener(guilds) {
                         if (res.name == CommandName.PLAY_YT_S || res.name == CommandName.PLAY_SC_S) {
                             val track = playlist.tracks[0]
                             e.channel
-                                .sendMessageEmbeds(builder.addField("Success!", "Adding `${track.info.title.esc()}` to q!", false).build())
+                                .sendMessageEmbeds(builder.addField("Adding `${track.info.title.esc()}` to q!".toResultField(true)).build())
                                 .queue()
                             track.play(audioGuild, chn,e.guild.audioManager)
                         } else {
                             e.channel
-                                .sendMessageEmbeds(builder.addField("Success!", "Detected playlist, adding ${playlist.tracks.size} tracks to q!", false).build())
+                                .sendMessageEmbeds(builder.addField("Detected playlist, adding ${playlist.tracks.size} tracks to q!".toResultField(true)).build())
                                 .queue()
                             playlist.tracks.forEach { it.play(audioGuild, chn, e.guild.audioManager) }
                         }
@@ -85,7 +85,7 @@ class CommandListener : GenericCommandListener(guilds) {
 
                     override fun noMatches() {
                         e.channel
-                            .sendMessageEmbeds(builder.addField("Failure", "No matches for your query!", false)
+                            .sendMessageEmbeds(builder.addField("No matches for your query!".toResultField())
                                 .setColor(Color.RED).build())
                             .queue()
                     }
@@ -93,7 +93,7 @@ class CommandListener : GenericCommandListener(guilds) {
                     override fun loadFailed(ex: FriendlyException) {
                         ex.printStackTrace()
                         e.channel
-                            .sendMessageEmbeds(builder.addField("Failure", "Couldn't load the track(s) due to an internal error!", false)
+                            .sendMessageEmbeds(builder.addField("Couldn't load the track(s) due to an internal error!".toResultField())
                                 .setColor(Color.RED).build())
                             .queue()
                     }
@@ -101,7 +101,7 @@ class CommandListener : GenericCommandListener(guilds) {
             }
             CommandName.SKIP -> {
                 audioGuild.nextTrack()// Add a dj role style shitter
-                e.channel.sendMessageEmbeds(builder.addField("Success", "Skipped!", false).build()).queue()
+                e.channel.sendMessageEmbeds(builder.addField("Skipped!".toResultField()).build()).queue()
             }
             CommandName.Q -> {
                 e.channel.sendMessageEmbeds(builder.addField("Queue contents", fmtQ(audioGuild.viewQueue()), false).build()).queue()
@@ -109,49 +109,49 @@ class CommandListener : GenericCommandListener(guilds) {
             CommandName.DC -> {
                 if (e.guild.audioManager.isConnected) {
                     e.guild.audioManager.closeAudioConnection()
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "Disconnected!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("Disconnected!".toResultField(true)).build()).queue()
                     // probably dont need to clear q because event handler fn handles?
                 } else {
-                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Failure", "Not currently connected to a voice channel!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Not currently connected to a voice channel!".toResultField()).build()).queue()
                 }
             }
             CommandName.LOOP -> {
                 audioGuild.looping = !audioGuild.looping
                 if (audioGuild.looping) {
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "The player is now looping the current track!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("The player is now looping the current track!".toResultField(true)).build()).queue()
                 } else {
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "The player is no longer looping the current track!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("The player is no longer looping the current track!".toResultField(true)).build()).queue()
                 }
             }
             CommandName.PAUSE -> {
                 audioGuild.togglePause()
                 if (audioGuild.isPaused()) {
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "Paused the player!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("Paused the player!".toResultField(true)).build()).queue()
                 } else {
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "Resumed the player!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("Resumed the player!".toResultField(true)).build()).queue()
                 }
             }
             CommandName.CLEAR -> {
                 audioGuild.clearQueue()
-                e.channel.sendMessageEmbeds(builder.addField("Success", "Cleared the queue!", false).build()).queue()
+                e.channel.sendMessageEmbeds(builder.addField("Cleared the queue!".toResultField(true)).build()).queue()
             }
             CommandName.SEEK -> {
                 val ms : Long = seekToMs(res.args[0]) ?: run {
-                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Failure", "Could not parse seek arg!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Could not parse seek arg!".toResultField()).build()).queue()
                     return
                 }
                 if (!audioGuild.seek(ms)) {
-                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Failure", "Could not seek to that position!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Could not seek to that position!".toResultField()).build()).queue()
                 } else {
-                    e.channel.sendMessageEmbeds(builder.addField("Success", "Now at ${ms.fmtMs()}!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("Now at ${ms.fmtMs()}!".toResultField(true)).build()).queue()
                 }
             }
             CommandName.POP -> {
                 val pop =audioGuild.pop()
                 if (pop == null) {
-                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Failure", "Queue is empty!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Queue is empty!".toResultField()).build()).queue()
                 } else {
-                    e.channel.sendMessageEmbeds(builder.addField("Success!", "Removed `${pop.info.title.esc()}` from q!", false).build()).queue()
+                    e.channel.sendMessageEmbeds(builder.addField("Removed `${pop.info.title.esc()}` from q!".toResultField(true)).build()).queue()
                 }
             }
             CommandName.HELP -> {

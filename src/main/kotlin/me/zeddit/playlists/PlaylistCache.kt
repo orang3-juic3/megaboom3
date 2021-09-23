@@ -21,9 +21,11 @@ class PlaylistCache(private val maxSize : Int)  {
         deque.addLast(playlist)
     }
 
-    fun getPlaylist(id: String): Playlist? {
+    fun getPlaylist(id: String): Playlist? = getPlaylist { it.id == id }
+
+    fun getPlaylist(predicate: (Playlist) -> Boolean) : Playlist? {
         return deque.firstNullable  {
-            it.id == id
+            predicate.invoke(it)
         }.apply { this?.let {
             deque.remove(this)
             deque.addLast(this)

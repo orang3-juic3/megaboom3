@@ -93,6 +93,7 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
         return service.invokeAll(callables).awaitAll()
     }
 
+
     @Synchronized
     fun remove(urls: List<String>) : Int {
         var count  =0
@@ -103,10 +104,10 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
     }
 
     @Synchronized
-    fun add(urls: List<String>) {
-        Executors.newFixedThreadPool(5, threadFactory).invokeAll(MutableList(urls.size) {
+    fun add(urls: List<String>) : List<AudioTrack> {
+        return Executors.newFixedThreadPool(5, threadFactory).invokeAll(MutableList(urls.size) {
             urls[it].constructTrackCallable()
-        }).awaitAll().flatMap { it.getOrThrow() }.forEach {
+        }).awaitAll().flatMap { it.getOrThrow() }.onEach {
             addTrack(it)
         }
     }
@@ -115,16 +116,21 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
         tracks.add(i.info.uri)
         audioTracks.add(i)
     }
+
     @Synchronized
-    fun add(url: String) {
+    fun add(url: String) : List<AudioTrack> {
+        val list = ArrayList<AudioTrack>()
         for (i in url.constructTrackCallable().call().getOrThrow()) {
             addTrack(i)
+            list.add(i)
         }
+        return list
     }
 
     fun getUserID() : String {
         return id.split("-")[0]
     }
+
     fun getPlaylistNumber() : String {
         return id.split("-")[1]
     }

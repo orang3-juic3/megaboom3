@@ -31,11 +31,11 @@ private val sysInThread = Thread {
         next = sc.next()
         if (next.equals("e", true)) {
             println("Shutting down..")
-            storageHandler.close()
             cache.allItems().forEach {
                 storageHandler.sync(it)
                 println("Saved cached playlist with id ${it.id}!")
             }
+            storageHandler.close()
             exitProcess(0)
         }
     }

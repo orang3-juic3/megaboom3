@@ -6,6 +6,7 @@ import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.ResultSet
 
 
 // This class will block
@@ -52,9 +53,9 @@ class PlaylistStorageHandler : AutoCloseable {
         var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE id = ?;")
         stmt.setString(1, playlist.id)
         val res = stmt.executeQuery()
-        val isEmpty = res.next()
+        val beforeFirst = res.isBeforeFirst
         stmt.close()
-        if (isEmpty) {
+        if (!beforeFirst) {
             stmt = connection.prepareStatement("INSERT INTO PlaylistMeta VALUES (?, ?, ?, ?, ?);")
         } else {
             stmt = connection.prepareStatement("UPDATE PlaylistMeta SET id=?, uid=?, pid=?, name=?, description=? WHERE id = ?;")
@@ -67,6 +68,7 @@ class PlaylistStorageHandler : AutoCloseable {
         stmt.setString(5, playlist.info.description)
         stmt.executeUpdate()
         stmt.close()
+
     }
 
     private fun syncTracks(playlist: Playlist) {
@@ -81,30 +83,29 @@ class PlaylistStorageHandler : AutoCloseable {
             stmt.setInt(3, i)
             stmt.executeUpdate()
         }
-        println()
     }
 
     //This list could be empty!
     @Synchronized
     fun retrieveAllPlaylists(uid: String) : List<Playlist> {
-        var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE uid = ?;")
+        val stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE uid = ?;")
         stmt.setString(1, uid)
         val res = stmt.executeQuery()
-        stmt.close()
         val playlists = ArrayList<Playlist>()
         while (res.next()) {
             val info = Playlist.Info(res.getString(4), res.getString(5))
             val id = res.getString(1)
-            stmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")
-            stmt.setString(1, id)
-            val miniRes = stmt.executeQuery()
+            val miniStmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")
+            miniStmt.setString(1, id)
+            val miniRes = miniStmt.executeQuery()
             val tracks : MutableList<String> = ArrayList()
             while (miniRes.next()) {
                 tracks.add(miniRes.getString(2))
             }
-            stmt.close()
+            miniStmt.close()
             playlists.add(Playlist(tracks, id, info, playerManager))
         }
+        stmt.close()
         return playlists
     }
 
@@ -113,10 +114,9 @@ class PlaylistStorageHandler : AutoCloseable {
         var stmt = connection.prepareStatement("SELECT * FROM PlaylistMeta WHERE id = ?;")
         stmt.setString(1, id)
         val res = stmt.executeQuery()
-        if (!res.next()) {
+        if (!res.isBeforeFirst) {
             return null
         }
-        res.first()
         val info  = Playlist.Info(res.getString(4), res.getString(5))
         stmt.close()
         stmt = connection.prepareStatement("SELECT * FROM PlaylistItems WHERE id = ? ORDER BY i;")

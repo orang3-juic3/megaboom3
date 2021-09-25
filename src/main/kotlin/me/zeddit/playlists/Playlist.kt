@@ -23,7 +23,22 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
         thread
     }
 
-    private lateinit var audioTracks: MutableList<AudioTrack>
+    private var started: Boolean = false
+    private var audioTracks: MutableList<AudioTrack> = ArrayList()
+    get() {
+        if (!started) {
+            field = resetInternal()
+            started = true
+        }
+        return field
+    }
+    set(value) {
+        if (!started) {
+            started =true
+        }
+        field = value
+    }
+
 
     private fun String.constructTrackCallable() : Callable<Result<List<AudioTrack>>> {
         val i = this
@@ -61,15 +76,18 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
         }
     }
 
-
     @Synchronized
-    fun reset() {
+    private fun resetInternal() : MutableList<AudioTrack> {
         val service = Executors.newFixedThreadPool(5, threadFactory)
         val callables = ArrayList<Callable<Result<List<AudioTrack>>>>()
         for (i in tracks) {
             callables.add(i.constructTrackCallable())
         }
-        audioTracks = service.invokeAll(callables).awaitAll().flatMap { it.getOrThrow() }.toMutableList()
+        return service.invokeAll(callables).awaitAll().flatMap { it.getOrThrow() }.toMutableList()
+    }
+    @Synchronized
+    fun reset() {
+        audioTracks = resetInternal()
     }
 
     @Synchronized
@@ -79,6 +97,7 @@ class Playlist(private val tracks: MutableList<String>, val id: String, val info
         val track = audioTracks.removeIf {it.info.uri == url}
         return if (str || track) 1 else 0
     }
+
 
     // This method makes sure this class is immutable by returning a new list each time.
     @Synchronized

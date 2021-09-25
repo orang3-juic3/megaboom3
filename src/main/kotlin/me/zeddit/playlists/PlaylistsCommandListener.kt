@@ -22,8 +22,6 @@ class PlaylistsCommandListener  {
         AudioSourceManagers.registerRemoteSources(this)
     }
 
-
-
     @SubscribeEvent
     fun onGuildMessageReceived(e: GuildMessageReceivedEvent) {
         if (e.isWebhookMessage) return
@@ -38,33 +36,70 @@ class PlaylistsCommandListener  {
         val result = parseCommand(cmd, e) ?: run {
             return
         }
-        val argsEmbed = builder.addField("Not enough args supplied!".toResultField()).build()
+        val argsEmbed = EmbedBuilder(builder).addField("Not enough/incorrect args supplied!".toResultField()).build()
+        val pFmtHelper = PlaylistFmtHelper(e, argsEmbed, e.author)
         when(result.commandName) {
             // Arg 0 = url 1(o) = id toggle rest is the name/id
             CommandName.ADD -> {
                 if (result.args.size < 2) {
                     e.channel.sendMessageEmbeds(argsEmbed).queue()
-                }
-                val arg1 =result.args[1]
-                if (arg1.equals(id, true) && result.args.size != 3) {
-                    e.channel.sendMessageEmbeds(argsEmbed).queue()
-                }
-                if (!result.args[0].matches(Regex("https?://"))) {
-                    e.channel.sendMessageEmbeds(builder.addField("Invalid url supplied!".toResultField()).build()).queue()
-                }
-                val playlist = if (arg1.equals(id, true)) {
-                    safeGetPlaylistId(arg1)
-                } else {
-                    safeGetPlaylist(Array(result.args.size - 1) {result.args[it + 1]}.joinToString(" "), e.author)
-                }
-                if (playlist == null) {
-                    e.channel.sendMessageEmbeds(arg1.toNoPlaylistEmbed(true)).queue()
                     return
                 }
-                addInternal(e, builder, playlist, result.args)
+                val arg1 =result.args[1]
+                if (arg1.equals("id", true) && result.args.size != 3) {
+                    e.channel.sendMessageEmbeds(argsEmbed).queue()
+                }
+                if (!result.args[0].matches(Regex("https?://.+"))) {
+                    e.channel.sendMessageEmbeds(builder.addField("Invalid url supplied!".toResultField()).build()).queue()
+                }
+                if (arg1.equals("id", true)) {
+                    getPlaylistFmt(result.args[2], pFmtHelper)
+                } else {
+                    getPlaylistFmt(result.args.joinToString(2),pFmtHelper, false)
+                }?.let {
+                    addInternal(e, builder, it, result.args)
+                }
             }
             CommandName.REMOVE -> TODO()
-            CommandName.QUEUE -> TODO()
+            CommandName.QUEUE -> {
+                // arg0 (opt) id toggle, arg1 etc name or id of playlist
+                if (result.args.isEmpty()) {
+                    e.channel.sendMessageEmbeds(argsEmbed).queue()
+                    return
+                }
+                val idToggle =result.args[0].equals("id", ignoreCase = true)
+                if (idToggle && result.args.size != 2) {
+                    e.channel.sendMessageEmbeds(argsEmbed).queue()
+                    return
+                }
+                if (idToggle) {
+                    getPlaylistFmt(result.args[1], pFmtHelper)
+                } else {
+                    getPlaylistFmt(result.args.joinToString(1),pFmtHelper, false)
+                }?.let {
+                    val audioManager = e.guild.audioManager
+                    val chn = e.member!!.voiceState!!.channel
+                    if (!audioManager.isConnected) {
+                        val embed = voiceChnPrecons(chn, e.guild.retrieveMember(jda!!.selfUser).complete())
+                        if (embed != null) {
+                            e.channel.sendMessageEmbeds(embed).queue()
+                            return
+                        }
+                    }
+                    val tracks = it.getTracks()
+                    if (tracks.isEmpty()) {
+                        e.channel.sendMessageEmbeds(builder.addField("The playlist is empty!".toResultField()).build()).queue()
+                        return
+                    }
+                    if (!audioManager.isConnected) {
+                        audioManager.openAudioConnection(chn)
+                    }
+                    for (i in tracks) audioGuild.queue(i)
+                    e.channel.sendMessageEmbeds(builder.setColor(Color.GREEN)
+                        .addField("Added ${tracks.size} tracks to queue from playlist ${it.info.name}!".toResultField(true)).build()).queue()
+                    audioGuild.nextTrack(true)
+                }
+            }
             CommandName.CREATE -> {
                 val playlists = storageHandler.retrieveAllPlaylists(e.author.id)
                 if (playlists.size >= 5) {
@@ -77,13 +112,14 @@ class PlaylistsCommandListener  {
                     name = result.args.joinToString("")
                 }
                 val newPl = Playlist(ArrayList(), "${e.author.id}-${nextId(playlists)}", Playlist.Info(name, ""), playerManager)
-                cache.cache(newPl)
-                e.channel
-                    .sendMessageEmbeds(builder
-                        .addField("Created playlist with name ${newPl.info.name} and id ${newPl.id}!".toResultField(true)).build()).queue()
                 Executors.newSingleThreadExecutor().submit {
+                    cache.cache(newPl)
                     storageHandler.sync(newPl)
                     println("User ${e.author.asTag} (id = ${e.author.id}) created a new playlist with id ${newPl.id}!")
+                    e.channel
+                        .sendMessageEmbeds(builder
+                            .addField("Created playlist with name ${newPl.info.name} and id ${newPl.id}!".toResultField(true)).setColor(
+                                Color.GREEN).build()).queue()
                 }
             }
             CommandName.DELETE -> TODO()
@@ -92,6 +128,20 @@ class PlaylistsCommandListener  {
             CommandName.NAME -> TODO()
             CommandName.CLONE -> TODO()
         }
+    }
+
+    private data class PlaylistFmtHelper(val e: GuildMessageReceivedEvent, val embed: MessageEmbed, val user: User)
+
+    private fun getPlaylistFmt(name: String, p: PlaylistFmtHelper, id: Boolean = true) : Playlist? {
+        val playlist = if (id) {
+            safeGetPlaylistId(name)
+        } else {
+            safeGetPlaylist(name,p.user)
+        }
+        if (playlist == null) {
+            p.e.channel.sendMessageEmbeds(p.embed).queue()
+        }
+        return playlist
     }
 
     private fun nextId(playlists:List<Playlist>) : Long {

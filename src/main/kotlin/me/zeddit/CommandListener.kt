@@ -189,18 +189,6 @@ class CommandListener  {
         }
     }
 
-    // null result == success
-    private fun voiceChnPrecons(chn: VoiceChannel?, self: Member) : MessageEmbed? {
-        val builder = EmbedBuilder().setColor(Color.RED).setTitle("Error").setTimestamp(Instant.now())
-        val wrongMsg = "Something went wrong!"
-        return when {
-            chn == null ->  builder.addField(wrongMsg, "You are not in a voice channel!", false).build()
-            chn.userLimit  >= chn.members.size+1 -> builder.addField(wrongMsg, "The voice channel you are in is full!", false).build()
-            !self.hasPermission(chn, Permission.VOICE_CONNECT) -> builder.addField(wrongMsg, "The bot doesn't have enough permissions to join your voice channel!", false).build()
-            else -> null
-        }
-    }
-
     private enum class CommandName {
         PLAY,
         PLAY_YT_S,

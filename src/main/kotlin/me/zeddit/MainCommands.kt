@@ -7,6 +7,9 @@ import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack
+import command.Command
+import command.CommandResult
+import command.GenericCommandName
 import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.*
@@ -22,30 +25,107 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-class CommandListener  {
+class MainCommands : Command {
 
     private val playerManager : AudioPlayerManager = DefaultAudioPlayerManager().apply {
         AudioSourceManagers.registerLocalSource(this)
         AudioSourceManagers.registerRemoteSources(this)
     }
 
-    @SubscribeEvent
-    fun onGuildMessage(e: GuildMessageReceivedEvent) {
-        if (e.isWebhookMessage) return
-        if (e.author.isBot) return
-        val id = e.guild.id
-        val audioGuild : AudioGuild = guilds.firstOrNull { it.id == id } ?: AudioGuild(playerManager, e.guild).apply { guilds.add(this) }
-        val res = parseCommand(e.message.contentRaw) ?: run {
-            e.channel.sendMessageEmbeds(
-                EmbedBuilder()
-                .setColor(Color.RED)
-                .setTitle("Error")
-                .addField("Something went wrong!", "Unknown command!", false)
-                .setTimestamp(Instant.now()).build()).queue()
-            return
+    private fun fmtQ(q: List<AudioTrack>) : String {
+        if (q.isEmpty()) {
+            return "Empty!"
         }
+        val builder = StringBuilder()
+        for (i in q.indices) {
+            val tr = q[i]
+            builder.append("${i + 1}. `${tr.info.title.esc()}` | `${tr.info.author.esc()}` | `${tr.duration.fmtMs()}`\n")
+        }
+        return builder.toString().apply {
+            if (this.length >= 1024) {
+                return this.substring(0..1023)
+            }
+        }
+    }
+
+    private enum class CommandName : GenericCommandName {
+        PLAY,
+        PLAY_YT_S,
+        PLAY_SC_S,
+        SKIP,
+        DC,
+        Q,
+        PAUSE,
+        LOOP,
+        CLEAR,
+        SEEK,
+        POP,
+        HELP,
+    }
+
+    override fun parseCommand(cmd: String, e: GuildMessageReceivedEvent): CommandResult? {
+        val splits = cmd.substring(1 until cmd.length).split(" ")
+        when {
+            splits[0].equals(ignoreCase = true, other = "play") || splits[0].equals(ignoreCase = true, other = "p")-> {
+                return when {
+                    splits.size== 2 && splits[1].matches(Regex("https?://"))-> {
+                        CommandResult(CommandName.PLAY, Array(1) {splits[1]})
+                    }
+                    splits.size < 2 -> {
+                        return null
+                    }
+                    else -> CommandResult(CommandName.PLAY_YT_S, splits.args())
+                }
+            }
+            splits[0].equals(ignoreCase = true, other = "dc") -> {
+                return CommandResult(CommandName.DC, Array(0) {""})
+            }
+            splits[0].equals(ignoreCase = true, other = "playsc") || splits[0].equals(ignoreCase = true, other = "psc") -> {
+                return when {
+                    splits.size == 2 -> {
+                        CommandResult(CommandName.PLAY, Array(1) {splits[1]})
+                    }
+                    splits.size < 2 -> {
+                        return null
+                    }
+                    else -> CommandResult(CommandName.PLAY_SC_S, splits.args())
+                }
+            }
+            splits[0].equals(ignoreCase = true, other = "skip") || splits[0].equals(ignoreCase = true, other = "fs") -> {
+                return CommandResult(CommandName.SKIP, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "queue") -> {
+                return CommandResult(CommandName.Q, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "loop") -> {
+                return CommandResult(CommandName.LOOP, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "pause") -> {
+                return CommandResult(CommandName.PAUSE, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "clear") -> {
+                return CommandResult(CommandName.CLEAR, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "seek") -> {
+                if (splits.args().size > 1) {
+                    return null
+                }
+                return CommandResult(CommandName.SEEK, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "pop") -> {
+                return CommandResult(CommandName.POP, splits.args())
+            }
+            splits[0].equals(ignoreCase = true, other = "help") -> {
+                return CommandResult(CommandName.HELP, splits.args())
+            }
+        }
+        return null
+    }
+
+    override fun onCommand(cmd: CommandResult, e: GuildMessageReceivedEvent) {
+        val audioGuild : AudioGuild = guilds.firstOrNull { it.id == e.guild.id } ?: AudioGuild(playerManager, e.guild).apply { guilds.add(this) }
         val builder = EmbedBuilder().setColor(Color.GREEN).setTitle("Result").setTimestamp(Instant.now())
-        when (res.name)  {
+        when (cmd.commandName)  {
             CommandName.PLAY, CommandName.PLAY_SC_S, CommandName.PLAY_YT_S -> {
                 val chn = e.member!!.voiceState!!.channel
                 val chnEmbed = voiceChnPrecons(chn, e.guild.retrieveMember(jda!!.selfUser).complete())
@@ -53,9 +133,9 @@ class CommandListener  {
                     e.channel.sendMessageEmbeds(chnEmbed!!).queue()
                     return
                 }
-                val argsJoined = res.args.joinToString(" ") { it }
-                val identifier = when (res.name) { // spaces issue
-                    CommandName.PLAY -> res.args[0]
+                val argsJoined = cmd.args.joinToString(" ") { it }
+                val identifier = when (cmd.commandName) { // spaces issue
+                    CommandName.PLAY -> cmd.args[0]
                     CommandName.PLAY_YT_S -> "ytsearch:$argsJoined"
                     CommandName.PLAY_SC_S -> "scsearch:$argsJoined"
                     else -> ""
@@ -69,7 +149,7 @@ class CommandListener  {
                     }
 
                     override fun playlistLoaded(playlist: AudioPlaylist) {
-                        if (res.name == CommandName.PLAY_YT_S || res.name == CommandName.PLAY_SC_S) {
+                        if (cmd.commandName == CommandName.PLAY_YT_S || cmd.commandName == CommandName.PLAY_SC_S) {
                             val track = playlist.tracks[0]
                             e.channel
                                 .sendMessageEmbeds(builder.addField("Adding `${track.info.title.esc()}` to q!".toResultField(true)).build())
@@ -136,7 +216,7 @@ class CommandListener  {
                 e.channel.sendMessageEmbeds(builder.addField("Cleared the queue!".toResultField(true)).build()).queue()
             }
             CommandName.SEEK -> {
-                val ms : Long = seekToMs(res.args[0]) ?: run {
+                val ms : Long = seekToMs(cmd.args[0]) ?: run {
                     e.channel.sendMessageEmbeds(builder.setColor(Color.RED).addField("Could not parse seek arg!".toResultField()).build()).queue()
                     return
                 }
@@ -169,102 +249,7 @@ class CommandListener  {
                             "!dc- Disconnects the bot, this happens automatically if the bot is alone in " +
                             "vc for 2 minutes. When the bot disconnects, all pause and loop options are reset and the queue is cleared.", false).build()).queue()
             }
-            CommandName.NOT -> return
         }
-    }
-
-    private fun fmtQ(q: List<AudioTrack>) : String {
-        if (q.isEmpty()) {
-            return "Empty!"
-        }
-        val builder = StringBuilder()
-        for (i in q.indices) {
-            val tr = q[i]
-            builder.append("${i + 1}. `${tr.info.title.esc()}` | `${tr.info.author.esc()}` | `${tr.duration.fmtMs()}`\n")
-        }
-        return builder.toString().apply {
-            if (this.length >= 1024) {
-                return this.substring(0..1023)
-            }
-        }
-    }
-
-    private enum class CommandName {
-        PLAY,
-        PLAY_YT_S,
-        PLAY_SC_S,
-        SKIP,
-        DC,
-        Q,
-        PAUSE,
-        LOOP,
-        CLEAR,
-        SEEK,
-        POP,
-        HELP,
-        NOT;
-    }
-
-    private class CommandResult(val name: CommandName, val args: Array<String>)
-
-    private fun parseCommand(string: String) : CommandResult? {
-        if (string.isEmpty() || string[0] != '!') return CommandResult(CommandName.NOT, Array(0) {""})
-        val splits = string.substring(1 until string.length).split(" ")
-        when {
-            splits[0].equals(ignoreCase = true, other = "play") || splits[0].equals(ignoreCase = true, other = "p")-> {
-                return when {
-                    splits.size== 2 && splits[1].matches(Regex("https?://"))-> {
-                        CommandResult(CommandName.PLAY, Array(1) {splits[1]})
-                    }
-                    splits.size < 2 -> {
-                        return null
-                    }
-                    else -> CommandResult(CommandName.PLAY_YT_S, splits.args())
-                }
-            }
-            splits[0].equals(ignoreCase = true, other = "dc") -> {
-                return CommandResult(CommandName.DC, Array(0) {""})
-            }
-            splits[0].equals(ignoreCase = true, other = "playsc") || splits[0].equals(ignoreCase = true, other = "psc") -> {
-                return when {
-                    splits.size== 2 -> {
-                        CommandResult(CommandName.PLAY, Array(1) {splits[1]})
-                    }
-                    splits.size < 2 -> {
-                        return null
-                    }
-                    else -> CommandResult(CommandName.PLAY_SC_S, splits.args())
-                }
-            }
-            splits[0].equals(ignoreCase = true, other = "skip") || splits[0].equals(ignoreCase = true, other = "fs") -> {
-                return CommandResult(CommandName.SKIP, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "queue") -> {
-                return CommandResult(CommandName.Q, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "loop") -> {
-                return CommandResult(CommandName.LOOP, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "pause") -> {
-                return CommandResult(CommandName.PAUSE, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "clear") -> {
-                return CommandResult(CommandName.CLEAR, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "seek") -> {
-                if (splits.args().size > 1) {
-                    return null
-                }
-                return CommandResult(CommandName.SEEK, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "pop") -> {
-                return CommandResult(CommandName.POP, splits.args())
-            }
-            splits[0].equals(ignoreCase = true, other = "help") -> {
-                return CommandResult(CommandName.HELP, splits.args())
-            }
-        }
-        return null
     }
 
     private fun seekToMs(string: String) : Long? {

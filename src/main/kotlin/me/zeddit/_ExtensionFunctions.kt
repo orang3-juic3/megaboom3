@@ -82,5 +82,7 @@ inline fun <T> Iterable<T>.firstNullable(predicate: (T) -> Boolean) : T? {
 
 fun String.toResultField(success: Boolean = false) : MessageEmbed.Field = MessageEmbed.Field(if (success) "Success" else "Failure", this, false)
 
-fun Array<String>.joinToString(offset: Int = 0, separator: String = " ") : String = Array(this.size - offset) {this[it + offset]}.joinToString(" ")
+fun Array<String>.joinToString(offset: Int = 0, separator: String = " ") : String = Array(this.size - offset) {this[it + offset]}.joinToString(separator)
+
+inline fun <T, R> Iterable<T>.filterMap(predicate: (T) -> Boolean, map: (T) -> R) : List<R> = this.filter(predicate).map(map)
 

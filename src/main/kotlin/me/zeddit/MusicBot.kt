@@ -1,8 +1,9 @@
 package me.zeddit
 
+import command.GeneralCommandListener
 import me.zeddit.playlists.PlaylistCache
 import me.zeddit.playlists.PlaylistStorageHandler
-import me.zeddit.playlists.PlaylistsCommandListener
+import me.zeddit.playlists.PlaylistsCommands
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.hooks.AnnotatedEventManager
@@ -16,11 +17,14 @@ val cache : PlaylistCache = PlaylistCache(20)
 val guilds: MutableSet<AudioGuild> = HashSet()
 fun main(args: Array<String>) {
     val token = args[0]
-    val listener = CommandListener()
+    val mainCommands = MainCommands()
+    val playlistsCommands = PlaylistsCommands()
+    val cmdListener = GeneralCommandListener()
+    cmdListener.addCommands(mainCommands, playlistsCommands)
     storageHandler.init()
     jda = JDABuilder.createDefault(token)
         .setEventManager(AnnotatedEventManager())
-        .addEventListeners(listener, PlaylistsCommandListener())
+        .addEventListeners(cmdListener)
         .build().awaitReady()
     sysInThread.start()
 }

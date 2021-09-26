@@ -75,7 +75,7 @@ class PlaylistStorageHandler : AutoCloseable {
         var stmt = connection.prepareStatement("DELETE FROM PlaylistItems WHERE id = ?;")
         stmt.setString(1, playlist.id)
         stmt.execute()
-        playlist.getTracks().map { it.info.uri }.forEachIndexed {i, it->
+        playlist.getTrackUrls().forEachIndexed {i, it->
             stmt.close()
             stmt = connection.prepareStatement("INSERT INTO PlaylistItems VALUES (?,?,?);")
             stmt.setString(1, playlist.id)
@@ -128,6 +128,18 @@ class PlaylistStorageHandler : AutoCloseable {
         }
         stmt.close()
         return Playlist(tracks, id, info, playerManager)
+    }
+
+    @Synchronized
+    fun remove(playlist: Playlist) {
+        var stmt = connection.prepareStatement("DELETE FROM PlaylistMeta WHERE id = ?")
+        stmt.setString(1, playlist.id)
+        stmt.execute()
+        stmt.close()
+        stmt = connection.prepareStatement("DELETE FROM PlaylistItems WHERE id = ?")
+        stmt.setString(1, playlist.id)
+        stmt.execute()
+        stmt.close()
     }
 
     override fun close() {

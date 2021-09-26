@@ -37,5 +37,8 @@ class PlaylistCache(private val maxSize : Int)  {
         return Array(deque.size) {iterator.next()}
     }
 
+    fun remove(playlist: Playlist) {
+        deque.remove(playlist)
+    }
 
 }

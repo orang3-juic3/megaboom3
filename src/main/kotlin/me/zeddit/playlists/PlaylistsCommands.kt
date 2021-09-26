@@ -148,7 +148,6 @@ class PlaylistsCommands : Command {
                     for (i in tracks) audioGuild.queue(i)
                     e.channel.sendMessageEmbeds(builder.setColor(Color.GREEN)
                         .addField("Added ${tracks.size} tracks to queue from playlist ${it.info.name}!".toResultField(true)).build()).queue()
-                    audioGuild.nextTrack(true)
                 }
             }
             CommandName.CREATE -> {

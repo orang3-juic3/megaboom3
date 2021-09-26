@@ -2,12 +2,15 @@ package me.zeddit
 
 import com.google.gson.Gson
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack
-import net.dv8tion.jda.api.entities.GuildChannel
-import net.dv8tion.jda.api.entities.VoiceChannel
+import net.dv8tion.jda.api.EmbedBuilder
+import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.*
 import net.dv8tion.jda.api.managers.AudioManager
 import net.dv8tion.jda.api.utils.MarkdownSanitizer
+import java.awt.Color
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.util.concurrent.Future
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -25,6 +28,18 @@ fun AudioTrack.play(audioGuild: AudioGuild, chn: VoiceChannel, audioManager: Aud
         audioManager.openAudioConnection(chn)
     }
     audioGuild.queue(this)
+}
+
+// null result == success
+fun voiceChnPrecons(chn: VoiceChannel?, self: Member) : MessageEmbed? {
+    val builder = EmbedBuilder().setColor(Color.RED).setTitle("Error").setTimestamp(Instant.now())
+    val wrongMsg = "Something went wrong!"
+    return when {
+        chn == null ->  builder.addField(wrongMsg, "You are not in a voice channel!", false).build()
+        chn.userLimit  >= chn.members.size+1 -> builder.addField(wrongMsg, "The voice channel you are in is full!", false).build()
+        !self.hasPermission(chn, Permission.VOICE_CONNECT) -> builder.addField(wrongMsg, "The bot doesn't have enough permissions to join your voice channel!", false).build()
+        else -> null
+    }
 }
 
 fun Long.fmtMs() : String {
@@ -59,3 +74,15 @@ fun <T> List<Future<T>>.awaitAll(): List<T> {
     }
     return complete // shouldnt block if they are all complete
 }
+
+inline fun <T> Iterable<T>.firstNullable(predicate: (T) -> Boolean) : T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
+
+fun String.toResultField(success: Boolean = false) : MessageEmbed.Field = MessageEmbed.Field(if (success) "Success" else "Failure", this, false)
+
+fun Array<String>.joinToString(offset: Int = 0, separator: String = " ") : String = Array(this.size - offset) {this[it + offset]}.joinToString(separator)
+
+inline fun <T, R> Iterable<T>.filterMap(predicate: (T) -> Boolean, map: (T) -> R) : List<R> = this.filter(predicate).map(map)
+

@@ -68,16 +68,16 @@ class AudioGuild(manager: AudioPlayerManager, guild: Guild) : AudioEventAdapter(
         return player.isPaused
     }
 
-    fun nextTrack() {
+    fun nextTrack(noInterrupt: Boolean = false) {
         if (looping) {
             if (current == null) {
-                player.startTrack(null, false)
+                player.startTrack(null, noInterrupt)
             } else {
-                player.startTrack(current, false)
+                player.startTrack(current, noInterrupt)
                 current = current!!.makeClone()
             }
         } else {
-            player.startTrack(queue.poll()?.apply { current = this.makeClone() }, false)
+            player.startTrack(queue.poll()?.apply { current = this.makeClone() }, noInterrupt)
         }
     }
 

@@ -181,7 +181,7 @@ class MainCommands : Command {
             }
             CommandName.SKIP -> {
                 audioGuild.nextTrack()// Add a dj role style shitter
-                e.channel.sendMessageEmbeds(builder.addField("Skipped!".toResultField()).build()).queue()
+                e.channel.sendMessageEmbeds(builder.addField("Skipped!".toResultField(true)).build()).queue()
             }
             CommandName.Q -> {
                 e.channel.sendMessageEmbeds(builder.addField("Queue contents", fmtQ(audioGuild.viewQueue()), false).build()).queue()
